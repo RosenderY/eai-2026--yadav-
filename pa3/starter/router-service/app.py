@@ -45,9 +45,7 @@ def get_rabbitmq_connection():
 ROUTES = {
     'physical': 'orders.physical',
     'digital': 'orders.digital',
-    # TODO: this assignment adds a third item type. What routing key should
-    # 'subscription' items go to? Keep the naming convention consistent with
-    # the other two.
+    'subscription': 'orders.subscription'
 }
 
 
