@@ -69,23 +69,48 @@ def route_order(ch, method, properties, body):
     connection = get_rabbitmq_connection()
     channel = connection.channel()
 
-    # TODO: declare the output queues you publish to (idempotent -- safe to
-    # call every time). You need at least orders.physical, orders.digital,
-    # orders.subscription. (orders.results is declared by the workers that
-    # publish to it; you do not need it here.)
+    # Declare the output queues. Declaring them repeatedly is safe in RabbitMQ.
+    channel.queue_declare(queue='orders.physical', durable=True)
+    channel.queue_declare(queue='orders.digital', durable=True)
+    channel.queue_declare(queue='orders.subscription', durable=True)
 
     items = order.get('items', [])
     item_count = len(items)
 
-    # TODO — SPLITTER + CONTENT-BASED ROUTER:
-    # For each item in `items` (keep track of its index):
-    #   1. Build the item message dict per the required shape above.
-    #   2. Look up the routing key for item['type'] in ROUTES.
-    #   3. Decide what happens for a type that is not in ROUTES -- do not
-    #      let it silently vanish. Log it and pick a defensible fallback;
-    #      say what you did and why in your ADR.
-    #   4. channel.basic_publish(..., properties=pika.BasicProperties(delivery_mode=2))
-    #      so the message survives a broker restart.
+    # SPLITTER + CONTENT-BASED ROUTER
+    for index, item in enumerate(items):
+        item_message = {
+            'orderId': order_id,
+            'correlationId': order_id,
+            'itemIndex': index,
+            'totalItems': item_count,
+            'item': item
+        }
+
+        item_type = item.get('type')
+        routing_key = ROUTES.get(item_type)
+
+        # Unknown item types are logged and skipped. Because totalItems still
+        # includes the skipped item, the aggregator will eventually emit a
+        # partial result that identifies the missing item index.
+        if routing_key is None:
+            print(
+                f"[Router] Unknown item type '{item_type}' "
+                f"for order {order_id}, item {index}; skipping"
+            )
+            continue
+
+        channel.basic_publish(
+            exchange='',
+            routing_key=routing_key,
+            body=json.dumps(item_message),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+        print(
+            f"[Router] Routed order {order_id} item {index} "
+            f"({item_type}) to {routing_key}"
+        )
 
     connection.close()
 
