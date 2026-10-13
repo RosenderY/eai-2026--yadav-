@@ -154,6 +154,12 @@ export function decodeB2BXmlBytes(bytes: Buffer): string {
   return new TextDecoder("windows-1257").decode(bytes);
 }
 
+function decodeNumericEntities(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)));
+}
+
 function nowIso(options: TranslateOptions): string {
   return (options.now?.() ?? new Date()).toISOString();
 }
@@ -256,12 +262,12 @@ export async function translateB2B(file: string, options: TranslateOptions): Pro
     source: "b2b",
     orderDate: new Date(x["@_orderDate"]).toISOString(),
     customer: {
-      name: buyer.Name,
-      email: buyer.ContactEmail,
+      name: decodeNumericEntities(String(buyer.Name)),
+      email: String(buyer.ContactEmail),
       address: {
-        street: ship.Street,
-        city: ship.City,
-        postalCode: ship.PostalCode,
+        street: decodeNumericEntities(String(ship.Street)),
+        city: decodeNumericEntities(String(ship.City)),
+        postalCode: String(ship.PostalCode),
         country: ship["@_country"],
       },
     },
