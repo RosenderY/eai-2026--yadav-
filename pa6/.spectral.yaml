@@ -1,0 +1,91 @@
+extends:
+  - spectral:oas
+
+rules:
+  info-description-required:
+    description: API metadata must explain the service purpose.
+    given: $.info
+    severity: error
+    then:
+      field: description
+      function: truthy
+  operation-operationId-required:
+    description: Every operation needs a stable operation identifier.
+    given: $.paths[*][*]
+    severity: error
+    then:
+      field: operationId
+      function: truthy
+  operation-id-camel-case:
+    description: Operation identifiers use camelCase.
+    given: $.paths[*][*].operationId
+    severity: error
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+  path-kebab-case:
+    description: URL path segments use kebab-case.
+    given: $.paths[*]~
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        match: ^(/[a-z0-9]+(-[a-z0-9]+)*|/\{[a-zA-Z][a-zA-Z0-9]*\})*$
+  schema-property-camel-case:
+    description: Schema property names use camelCase.
+    given: $.components.schemas[*].properties[*]~
+    severity: error
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+  operation-description-required:
+    description: Every operation must explain its behavior.
+    given: $.paths[*][*]
+    severity: error
+    then:
+      field: description
+      function: truthy
+  operation-summary-required:
+    description: Every operation must have a summary.
+    given: $.paths[*][*]
+    severity: error
+    then:
+      field: summary
+      function: truthy
+  parameter-description-required:
+    description: Every parameter must be described.
+    given: $.paths[*][*].parameters[*]
+    severity: error
+    then:
+      field: description
+      function: truthy
+  request-body-description-required:
+    description: Every request body must be described.
+    given: $.paths[*][*].requestBody
+    severity: error
+    then:
+      field: description
+      function: truthy
+  response-description-required:
+    description: Every response must explain its meaning.
+    given: $.paths[*][*].responses[*]
+    severity: error
+    then:
+      field: description
+      function: truthy
+  error-responses-have-schema:
+    description: All client and server errors expose a JSON schema.
+    given: $.paths[*][*].responses[?(@property.match(/^(4|5)/))]
+    severity: error
+    then:
+      field: content.application/json.schema
+      function: truthy
+  no-unbounded-arrays:
+    description: Every array schema declares a maximum size.
+    given: $..[?(@.type=='array')]
+    severity: error
+    then:
+      field: maxItems
+      function: truthy
