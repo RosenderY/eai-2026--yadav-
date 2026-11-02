@@ -1,0 +1,267 @@
+openapi: 3.0.3
+info:
+  title: Order Fulfilment Coordinator
+  version: 1.0.0
+  description: >-
+    HTTP contract for starting and observing a bounded checkout workflow.
+    The coordinator validates the course canonical order, then drives payment,
+    stock, shipment and customer communication as ordered remote operations.
+servers:
+  - url: http://localhost:3000
+    description: Local compose network exposed to the developer machine
+paths:
+  /health:
+    get:
+      operationId: readCoordinatorHealth
+      summary: Read coordinator readiness
+      description: Reports whether the HTTP coordinator is running and able to receive checkout requests.
+      responses:
+        '200':
+          description: Coordinator is ready to accept work.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /checkout:
+    post:
+      operationId: submitCheckout
+      summary: Submit a canonical order for fulfilment
+      description: >-
+        Starts a sequential saga: authorize payment, reserve inventory, create
+        shipping and send the notification. A later failure triggers available
+        compensations in reverse order. Repeated requests are governed by the
+        Idempotency-Key header.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Client-chosen key that identifies this logical checkout request and its replay history.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 180
+      requestBody:
+        required: true
+        description: The unmodified canonical order produced by the earlier course translation assignment.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CanonicalOrder'
+      responses:
+        '200':
+          description: All forward operations finished successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResult'
+        '400':
+          description: The header or canonical order is missing or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The key is in use or has already been associated with a different order body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: A business operation failed or a compensating operation could not restore the prior business state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResult'
+        '504':
+          description: A downstream service did not respond within the configured request deadline.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResult'
+components:
+  schemas:
+    Health:
+      type: object
+      description: Simple readiness indicator.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: Readiness state.
+    Address:
+      type: object
+      description: Postal address in the canonical customer object.
+      additionalProperties: false
+      required: [street, city, postalCode, country]
+      properties:
+        street:
+          type: string
+          minLength: 1
+          description: Street and building number.
+        city:
+          type: string
+          minLength: 1
+          description: City name.
+        postalCode:
+          type: string
+          minLength: 1
+          description: Postal code.
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+          description: Two-letter country code.
+    Customer:
+      type: object
+      description: Customer details from the canonical order.
+      additionalProperties: false
+      required: [name, email, address]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Customer's full name.
+        email:
+          type: string
+          format: email
+          description: Address used by the notification step.
+        address:
+          $ref: '#/components/schemas/Address'
+    LineItem:
+      type: object
+      description: A priced line that contributes to the payment amount and inventory request.
+      additionalProperties: false
+      required: [productId, productName, quantity, unitPrice, currency, taxRate]
+      properties:
+        productId:
+          type: string
+          pattern: '^PROD-[0-9]+$'
+          description: Canonical product identifier.
+        productName:
+          type: string
+          minLength: 1
+          description: Human-readable product name.
+        quantity:
+          type: integer
+          minimum: 1
+          description: Units to reserve.
+        unitPrice:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{2}$'
+          description: Decimal string with exactly two fraction digits.
+        currency:
+          type: string
+          minLength: 1
+          description: Currency of this line's unit price.
+        taxRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Tax fraction between zero and one.
+    CanonicalOrder:
+      type: object
+      description: Canonical course order. The coordinator does not add fields to this payload.
+      additionalProperties: false
+      required: [orderId, orderType, source, receivedAt, orderDate, customer, items, currency, status]
+      properties:
+        orderId:
+          type: string
+          minLength: 1
+          description: Original order identifier.
+        orderType:
+          type: string
+          enum: [standard, express, b2b]
+          description: Business order category.
+        source:
+          type: string
+          enum: [web, mobile, b2b]
+          description: Source translator.
+        receivedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the translator created the canonical record.
+        orderDate:
+          type: string
+          format: date-time
+          description: Original order time normalized to ISO 8601.
+        customer:
+          $ref: '#/components/schemas/Customer'
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Up to fifty order lines.
+          items:
+            $ref: '#/components/schemas/LineItem'
+        currency:
+          type: string
+          minLength: 1
+          description: Currency declared by the source order.
+        status:
+          type: string
+          enum: [new, processing, shipped, delivered]
+          description: Canonical order status at checkout entry.
+    TraceEntry:
+      type: object
+      description: Timed record of one forward call or compensation attempt.
+      additionalProperties: false
+      required: [step, status, startedAt, finishedAt, durationMs]
+      properties:
+        step:
+          type: string
+          enum: [payment, inventory, shipping, notification, inventory_release, payment_refund]
+          description: Operation name in actual execution order.
+        status:
+          type: string
+          enum: [success, failed, timeout]
+          description: Observed outcome of the operation.
+        startedAt:
+          type: string
+          format: date-time
+          description: Time the operation began.
+        finishedAt:
+          type: string
+          format: date-time
+          description: Time the operation ended.
+        durationMs:
+          type: integer
+          minimum: 0
+          description: Elapsed time in milliseconds.
+    CheckoutResult:
+      type: object
+      description: Final workflow result and chronological operation trace.
+      additionalProperties: false
+      required: [orderId, status, trace]
+      properties:
+        orderId:
+          type: string
+          minLength: 1
+          description: Original order identifier.
+        status:
+          type: string
+          enum: [completed, failed, compensated]
+          description: Final state after forward work and any compensations.
+        code:
+          type: string
+          description: Machine-readable failure reason when the workflow did not complete.
+        trace:
+          type: array
+          maxItems: 6
+          description: At most four forward operations and two compensations.
+          items:
+            $ref: '#/components/schemas/TraceEntry'
+    Problem:
+      type: object
+      description: Error returned when checkout cannot be started or a key conflicts.
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Stable machine-readable error code.
+        message:
+          type: string
+          minLength: 1
+          description: Human-readable explanation.
