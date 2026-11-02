@@ -1,0 +1,9 @@
+{
+  "name": "pa6-order-fulfilment",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "npm test --prefix tests/public",
+    "test:install": "npm install --prefix tests/public"
+  }
+}
