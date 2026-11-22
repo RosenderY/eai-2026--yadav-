@@ -13,7 +13,8 @@ async function call(api,ctx,s,step) {
   const [service,path,key]=endpoints[step],o=s.order,body={orderId:o.orderId};
   if(step==='payment'){
     const cents=o.items.reduce((n,i)=>n+BigInt(i.unitPrice.replace('.',''))*BigInt(i.quantity),0n);
-    body.amount=(cents/100n)+'.'+String(cents%100n).padStart(2,'0');
+    const magnitude = cents < 0n ? -cents : cents;
+    body.amount= (cents < 0n ? "-" : "") + (magnitude / 100n) + "." + String(magnitude % 100n).padStart(2, "0");
   }
   if(step==='inventory')body.items=o.items;
   if(step==='notification')body.recipient=o.customer.email;

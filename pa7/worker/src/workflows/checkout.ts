@@ -30,7 +30,8 @@ export async function checkout(order: CanonicalOrder): Promise<CheckoutResult> {
   try {
     const cents = order.items.reduce((sum, item) =>
       sum + BigInt(item.unitPrice.replace(".", "")) * BigInt(item.quantity), 0n);
-    const amount = (cents / 100n) + "." + String(cents % 100n).padStart(2, "0");
+    const magnitude = cents < 0n ? -cents : cents;
+    const amount = (cents < 0n ? "-" : "") + (magnitude / 100n) + "." + String(magnitude % 100n).padStart(2, "0");
     await step("payment", () => act.authorizePayment(orderId, amount));
     undo.push(["payment_refund", () => act.refundPayment(orderId)]);
     await step("inventory", () => act.reserveInventory(orderId, order.items));

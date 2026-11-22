@@ -1,6 +1,5 @@
-import { XMLParser } from "fast-xml-parser";
-const DEFAULT_PRICING_API_KEY = "pa4-pricing-key-2026";
-const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: false });
 const mobileCurrency = { 978: "EUR", 840: "USD", 826: "GBP" };
 const mobileStatus = {
   1: "new",
@@ -9,6 +8,7 @@ const mobileStatus = {
   4: "delivered"
 };
 function normalizeProductId(source, rawId) {
+  if (rawId == null || rawId === "") throw new Error("Missing product identifier");
   if (source === "mobile") return "PROD-" + rawId;
   if (source === "b2b") return rawId.replace(/^SKU-/, "");
   return rawId;
@@ -92,8 +92,9 @@ function parseMobileAddress(value) {
   if (p.length !== 4) throw new Error("Expected four address parts");
   return { street: p[0], city: p[1], postalCode: p[2], country: p[3] };
 }
-function decodeB2BXmlBytes(bytes) {
-  return new TextDecoder("windows-1257").decode(bytes);
+function requiredText(value) {
+  if (typeof value !== "string" || !value.trim()) throw new Error("Missing XML field");
+  return value;
 }
 function decodeNumericEntities(value) {
   return value.replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code))).replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)));
@@ -113,6 +114,10 @@ function asStatus(v) {
   return s;
 }
 async function assemble(base, lines, options) {
+  if (!lines.length || lines.length > Number(process.env.ORDER_ITEMS_MAX)) throw new Error("Invalid item count");
+  for (const line of lines) {
+    if (!line.productName || !Number.isInteger(line.quantity) || line.quantity < 1) throw new Error("Invalid order item");
+  }
   const enriched = await enrichItems(lines, options);
   if (enriched.items.length === 0) return { order: null, warnings: enriched.warnings };
   return {
@@ -168,14 +173,15 @@ async function translateMobile(data, options) {
   }, lines, options);
 }
 async function translateB2B(data, options) {
+  if (XMLValidator.validate(data) !== true) throw new Error("Malformed XML");
   const parsed = xmlParser.parse(data);
   const x = parsed.PurchaseOrder;
   const buyer = x.BuyerParty;
   const ship = buyer.ShipToAddress;
   const rawLines = Array.isArray(x.LineItems.LineItem) ? x.LineItems.LineItem : [x.LineItems.LineItem];
   const lines = rawLines.map((i) => ({
-    productId: normalizeProductId("b2b", String(i["@_sku"])),
-    productName: String(i.Description),
+    productId: normalizeProductId("b2b", requiredText(i["@_sku"])),
+    productName: requiredText(i.Description),
     quantity: Number(i["@_quantity"])
   }));
   return assemble({
@@ -184,12 +190,12 @@ async function translateB2B(data, options) {
     source: "b2b",
     orderDate: new Date(x["@_orderDate"]).toISOString(),
     customer: {
-      name: decodeNumericEntities(String(buyer.Name)),
-      email: String(buyer.ContactEmail),
+      name: decodeNumericEntities(requiredText(buyer.Name)),
+      email: requiredText(buyer.ContactEmail),
       address: {
-        street: decodeNumericEntities(String(ship.Street)),
-        city: decodeNumericEntities(String(ship.City)),
-        postalCode: String(ship.PostalCode),
+        street: decodeNumericEntities(requiredText(ship.Street)),
+        city: decodeNumericEntities(requiredText(ship.City)),
+        postalCode: requiredText(ship.PostalCode),
         country: ship["@_country"]
       }
     },
@@ -197,19 +203,4 @@ async function translateB2B(data, options) {
     status: mapB2BStatus(x.Status)
   }, lines, options);
 }
-export {
-  DEFAULT_PRICING_API_KEY,
-  decodeB2BXmlBytes,
-  enrichFromPricing,
-  enrichItems,
-  epochSecondsToIso,
-  mapB2BStatus,
-  mapCurrencyCode,
-  mapMobileStatus,
-  normalizeProductId,
-  parseMobileAddress,
-  toDecimalAmount,
-  translateB2B,
-  translateMobile,
-  translateWeb
-};
+export { translateWeb, translateMobile, translateB2B };
