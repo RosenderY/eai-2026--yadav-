@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+erl_crash.dump
+/pa1/data/customers.csv
+/pa1/data/orders-20260901.txt
+/pa7/tests/public/fixtures/order.json
+/capstone/tests/fixtures/b2b-order.xml
+/capstone/tests/fixtures/mobile-order.json
+/capstone/tests/fixtures/web-order.json

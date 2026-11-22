@@ -1,0 +1,291 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="OrderDefinitions" targetNamespace="urn:eai:checkout">
+  <bpmn:process id="Checkout" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Order accepted">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Route" name="Invoiced B2B?" />
+    <bpmn:serviceTask id="Payment" name="Authorize payment" />
+    <bpmn:boundaryEvent id="PaymentErr" name="" attachedToRef="Payment">
+      <bpmn:errorEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="PaymentTime" name="" attachedToRef="Payment">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT2.5S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Inventory" name="Reserve stock" />
+    <bpmn:boundaryEvent id="InventoryErr" name="" attachedToRef="Inventory">
+      <bpmn:errorEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="InventoryTime" name="" attachedToRef="Inventory">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT2.5S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Shipping" name="Create shipment" />
+    <bpmn:boundaryEvent id="ShippingErr" name="" attachedToRef="Shipping">
+      <bpmn:errorEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="ShippingTime" name="" attachedToRef="Shipping">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT2.5S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Notification" name="Notify customer" />
+    <bpmn:boundaryEvent id="NotificationErr" name="" attachedToRef="Notification">
+      <bpmn:errorEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="NotificationTime" name="" attachedToRef="Notification">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT2.5S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="Done" name="Completed" />
+    <bpmn:sequenceFlow id="F_Start_Route" name="" sourceRef="Start" targetRef="Route" />
+    <bpmn:sequenceFlow id="F_Route_Payment" name="Prepaid" sourceRef="Route" targetRef="Payment" />
+    <bpmn:sequenceFlow id="F_Payment_Inventory" name="" sourceRef="Payment" targetRef="Inventory" />
+    <bpmn:sequenceFlow id="F_Inventory_Shipping" name="" sourceRef="Inventory" targetRef="Shipping" />
+    <bpmn:sequenceFlow id="F_Shipping_Notification" name="" sourceRef="Shipping" targetRef="Notification" />
+    <bpmn:sequenceFlow id="F_Notification_Done" name="" sourceRef="Notification" targetRef="Done" />
+    <bpmn:sequenceFlow id="F_Route_Inventory" name="B2B" sourceRef="Route" targetRef="Inventory" />
+    <bpmn:exclusiveGateway id="Classify" name="First step?" />
+    <bpmn:exclusiveGateway id="Permanent" name="Permanent refusal?" />
+    <bpmn:endEvent id="Failed" name="Failed" />
+    <bpmn:endEvent id="Parked" name="Parked after retry limit" />
+    <bpmn:intermediateThrowEvent id="Undo" name="Undo completed steps">
+      <bpmn:compensateEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:exclusiveGateway id="UndoResult" name="Undo succeeded?" />
+    <bpmn:endEvent id="Undone" name="Compensated" />
+    <bpmn:endEvent id="UndoFailed" name="Compensation failed" />
+    <bpmn:sequenceFlow id="F_PaymentErr_Classify" name="" sourceRef="PaymentErr" targetRef="Classify" />
+    <bpmn:sequenceFlow id="F_PaymentTime_Classify" name="" sourceRef="PaymentTime" targetRef="Classify" />
+    <bpmn:sequenceFlow id="F_InventoryErr_Classify" name="" sourceRef="InventoryErr" targetRef="Classify" />
+    <bpmn:sequenceFlow id="F_InventoryTime_Classify" name="" sourceRef="InventoryTime" targetRef="Classify" />
+    <bpmn:sequenceFlow id="F_ShippingErr_Undo" name="" sourceRef="ShippingErr" targetRef="Undo" />
+    <bpmn:sequenceFlow id="F_ShippingTime_Undo" name="" sourceRef="ShippingTime" targetRef="Undo" />
+    <bpmn:sequenceFlow id="F_NotificationErr_Undo" name="" sourceRef="NotificationErr" targetRef="Undo" />
+    <bpmn:sequenceFlow id="F_NotificationTime_Undo" name="" sourceRef="NotificationTime" targetRef="Undo" />
+    <bpmn:sequenceFlow id="F_Classify_Permanent" name="Yes" sourceRef="Classify" targetRef="Permanent" />
+    <bpmn:sequenceFlow id="F_Classify_Undo" name="No" sourceRef="Classify" targetRef="Undo" />
+    <bpmn:sequenceFlow id="F_Permanent_Failed" name="Yes" sourceRef="Permanent" targetRef="Failed" />
+    <bpmn:sequenceFlow id="F_Permanent_Parked" name="Retry exhausted" sourceRef="Permanent" targetRef="Parked" />
+    <bpmn:sequenceFlow id="F_Undo_UndoResult" name="" sourceRef="Undo" targetRef="UndoResult" />
+    <bpmn:sequenceFlow id="F_UndoResult_Undone" name="Yes" sourceRef="UndoResult" targetRef="Undone" />
+    <bpmn:sequenceFlow id="F_UndoResult_UndoFailed" name="No" sourceRef="UndoResult" targetRef="UndoFailed" />
+    <bpmn:boundaryEvent id="PaymentComp" name="" attachedToRef="Payment">
+      <bpmn:compensateEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Refund" name="Refund payment" isForCompensation="true" />
+    <bpmn:association id="F_PaymentComp_Refund" name="" sourceRef="PaymentComp" targetRef="Refund" />
+    <bpmn:boundaryEvent id="InventoryComp" name="" attachedToRef="Inventory">
+      <bpmn:compensateEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Release" name="Release stock" isForCompensation="true" />
+    <bpmn:association id="F_InventoryComp_Release" name="" sourceRef="InventoryComp" targetRef="Release" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram">
+    <bpmndi:BPMNPlane id="Plane" bpmnElement="Checkout">
+      <bpmndi:BPMNShape id="Start_di" bpmnElement="Start">
+        <dc:Bounds x="40" y="95" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Route_di" bpmnElement="Route">
+        <dc:Bounds x="135" y="88" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Payment_di" bpmnElement="Payment">
+        <dc:Bounds x="245" y="80" width="120" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PaymentErr_di" bpmnElement="PaymentErr">
+        <dc:Bounds x="263" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PaymentTime_di" bpmnElement="PaymentTime">
+        <dc:Bounds x="313" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Inventory_di" bpmnElement="Inventory">
+        <dc:Bounds x="445" y="80" width="120" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="InventoryErr_di" bpmnElement="InventoryErr">
+        <dc:Bounds x="463" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="InventoryTime_di" bpmnElement="InventoryTime">
+        <dc:Bounds x="513" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shipping_di" bpmnElement="Shipping">
+        <dc:Bounds x="645" y="80" width="120" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ShippingErr_di" bpmnElement="ShippingErr">
+        <dc:Bounds x="663" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ShippingTime_di" bpmnElement="ShippingTime">
+        <dc:Bounds x="713" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Notification_di" bpmnElement="Notification">
+        <dc:Bounds x="845" y="80" width="120" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="NotificationErr_di" bpmnElement="NotificationErr">
+        <dc:Bounds x="863" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="NotificationTime_di" bpmnElement="NotificationTime">
+        <dc:Bounds x="913" y="128" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Done_di" bpmnElement="Done">
+        <dc:Bounds x="1040" y="95" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F_Start_Route_di" bpmnElement="F_Start_Route">
+        <di:waypoint x="76" y="113.0" />
+        <di:waypoint x="135" y="113.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Route_Payment_di" bpmnElement="F_Route_Payment">
+        <di:waypoint x="185" y="113.0" />
+        <di:waypoint x="245" y="112.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Payment_Inventory_di" bpmnElement="F_Payment_Inventory">
+        <di:waypoint x="365" y="112.5" />
+        <di:waypoint x="445" y="112.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Inventory_Shipping_di" bpmnElement="F_Inventory_Shipping">
+        <di:waypoint x="565" y="112.5" />
+        <di:waypoint x="645" y="112.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Shipping_Notification_di" bpmnElement="F_Shipping_Notification">
+        <di:waypoint x="765" y="112.5" />
+        <di:waypoint x="845" y="112.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Notification_Done_di" bpmnElement="F_Notification_Done">
+        <di:waypoint x="965" y="112.5" />
+        <di:waypoint x="1040" y="113.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Route_Inventory_di" bpmnElement="F_Route_Inventory">
+        <di:waypoint x="160" y="88" />
+        <di:waypoint x="160" y="35" />
+        <di:waypoint x="505" y="35" />
+        <di:waypoint x="505" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Classify_di" bpmnElement="Classify">
+        <dc:Bounds x="280" y="250" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Permanent_di" bpmnElement="Permanent">
+        <dc:Bounds x="110" y="360" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Failed_di" bpmnElement="Failed">
+        <dc:Bounds x="40" y="490" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Parked_di" bpmnElement="Parked">
+        <dc:Bounds x="210" y="490" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Undo_di" bpmnElement="Undo">
+        <dc:Bounds x="570" y="350" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UndoResult_di" bpmnElement="UndoResult">
+        <dc:Bounds x="685" y="343" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Undone_di" bpmnElement="Undone">
+        <dc:Bounds x="855" y="300" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UndoFailed_di" bpmnElement="UndoFailed">
+        <dc:Bounds x="855" y="420" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F_PaymentErr_Classify_di" bpmnElement="F_PaymentErr_Classify">
+        <di:waypoint x="279.0" y="160" />
+        <di:waypoint x="279.0" y="195" />
+        <di:waypoint x="305.0" y="195" />
+        <di:waypoint x="305.0" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_PaymentTime_Classify_di" bpmnElement="F_PaymentTime_Classify">
+        <di:waypoint x="329.0" y="160" />
+        <di:waypoint x="329.0" y="207" />
+        <di:waypoint x="305.0" y="207" />
+        <di:waypoint x="305.0" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_InventoryErr_Classify_di" bpmnElement="F_InventoryErr_Classify">
+        <di:waypoint x="479.0" y="160" />
+        <di:waypoint x="479.0" y="195" />
+        <di:waypoint x="305.0" y="195" />
+        <di:waypoint x="305.0" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_InventoryTime_Classify_di" bpmnElement="F_InventoryTime_Classify">
+        <di:waypoint x="529.0" y="160" />
+        <di:waypoint x="529.0" y="207" />
+        <di:waypoint x="305.0" y="207" />
+        <di:waypoint x="305.0" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_ShippingErr_Undo_di" bpmnElement="F_ShippingErr_Undo">
+        <di:waypoint x="679.0" y="160" />
+        <di:waypoint x="679.0" y="195" />
+        <di:waypoint x="588.0" y="195" />
+        <di:waypoint x="588.0" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_ShippingTime_Undo_di" bpmnElement="F_ShippingTime_Undo">
+        <di:waypoint x="729.0" y="160" />
+        <di:waypoint x="729.0" y="207" />
+        <di:waypoint x="588.0" y="207" />
+        <di:waypoint x="588.0" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_NotificationErr_Undo_di" bpmnElement="F_NotificationErr_Undo">
+        <di:waypoint x="879.0" y="160" />
+        <di:waypoint x="879.0" y="195" />
+        <di:waypoint x="588.0" y="195" />
+        <di:waypoint x="588.0" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_NotificationTime_Undo_di" bpmnElement="F_NotificationTime_Undo">
+        <di:waypoint x="929.0" y="160" />
+        <di:waypoint x="929.0" y="207" />
+        <di:waypoint x="588.0" y="207" />
+        <di:waypoint x="588.0" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Classify_Permanent_di" bpmnElement="F_Classify_Permanent">
+        <di:waypoint x="330" y="275.0" />
+        <di:waypoint x="110" y="385.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Classify_Undo_di" bpmnElement="F_Classify_Undo">
+        <di:waypoint x="330" y="275.0" />
+        <di:waypoint x="570" y="368.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Permanent_Failed_di" bpmnElement="F_Permanent_Failed">
+        <di:waypoint x="160" y="385.0" />
+        <di:waypoint x="40" y="508.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Permanent_Parked_di" bpmnElement="F_Permanent_Parked">
+        <di:waypoint x="160" y="385.0" />
+        <di:waypoint x="210" y="508.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_Undo_UndoResult_di" bpmnElement="F_Undo_UndoResult">
+        <di:waypoint x="606" y="368.0" />
+        <di:waypoint x="685" y="368.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_UndoResult_Undone_di" bpmnElement="F_UndoResult_Undone">
+        <di:waypoint x="735" y="368.0" />
+        <di:waypoint x="855" y="318.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_UndoResult_UndoFailed_di" bpmnElement="F_UndoResult_UndoFailed">
+        <di:waypoint x="735" y="368.0" />
+        <di:waypoint x="855" y="438.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="PaymentComp_di" bpmnElement="PaymentComp">
+        <dc:Bounds x="337" y="125" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Refund_di" bpmnElement="Refund">
+        <dc:Bounds x="285" y="550" width="115" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F_PaymentComp_Refund_di" bpmnElement="F_PaymentComp_Refund">
+        <di:waypoint x="353" y="157" />
+        <di:waypoint x="375" y="180" />
+        <di:waypoint x="375" y="525" />
+        <di:waypoint x="343" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="InventoryComp_di" bpmnElement="InventoryComp">
+        <dc:Bounds x="537" y="125" width="32" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Release_di" bpmnElement="Release">
+        <dc:Bounds x="485" y="550" width="115" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F_InventoryComp_Release_di" bpmnElement="F_InventoryComp_Release">
+        <di:waypoint x="553" y="157" />
+        <di:waypoint x="575" y="180" />
+        <di:waypoint x="575" y="525" />
+        <di:waypoint x="543" y="550" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
