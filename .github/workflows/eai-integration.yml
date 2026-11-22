@@ -1,0 +1,45 @@
+name: EAI public integration tests
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pa1/**'
+      - 'pa2/**'
+      - 'pa7/**'
+      - 'capstone/**'
+      - 'prepare-course-fixtures.sh'
+      - '.github/workflows/eai-integration.yml'
+permissions:
+  contents: read
+jobs:
+  public-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - assignment: pa1
+            tests: pa1/starter
+          - assignment: pa2
+            tests: pa2/starter
+          - assignment: pa7
+            tests: pa7/tests
+          - assignment: capstone
+            tests: capstone/tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: sh prepare-course-fixtures.sh
+      - run: npm ci
+        working-directory: ${{ matrix.tests }}
+      - if: matrix.assignment != 'pa1'
+        run: docker compose up -d --build --wait
+        working-directory: ${{ matrix.assignment }}
+      - run: npm test
+        working-directory: ${{ matrix.tests }}
+      - if: always() && matrix.assignment != 'pa1'
+        run: docker compose down -v
+        working-directory: ${{ matrix.assignment }}
